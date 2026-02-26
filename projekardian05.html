@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>To-Do List Sederhana</title>
+    
+    <!-- Menggunakan Tailwind CSS untuk styling yang cepat dan modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Menggunakan Phosphor Icons untuk ikon -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Transisi halus untuk interaksi item tugas */
+        .task-transition {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        /* Kustom scrollbar agar lebih rapi */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-indigo-50 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <!-- Container Utama Aplikasi -->
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-indigo-100 flex flex-col h-[85vh] sm:h-[600px] overflow-hidden">
+        
+        <!-- Header Aplikasi -->
+        <header class="bg-indigo-600 text-white p-6 shadow-md z-10">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i class="ph ph-check-square-offset text-3xl"></i>
+                Daftar Tugas
+            </h1>
+            <p class="text-indigo-100 text-sm mt-1">Apa fokus utamamu hari ini?</p>
+        </header>
+
+        <!-- Form Input Tugas -->
+        <div class="p-5 border-b border-slate-100 bg-slate-50 flex gap-3 z-0">
+            <input 
+                type="text" 
+                id="taskInput" 
+                class="flex-1 border-none shadow-inner bg-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow text-slate-700 placeholder-slate-400" 
+                placeholder="Ketik tugas baru..."
+            >
+            <button 
+                onclick="addTask()" 
+                class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-5 rounded-xl font-bold transition-transform transform hover:scale-105 active:scale-95 shadow-sm flex items-center justify-center"
+            >
+                <i class="ph ph-plus text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Area Daftar Tugas -->
+        <ul id="taskList" class="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50">
+            <!-- Item tugas akan dimasukkan ke sini oleh JavaScript -->
+        </ul>
+        
+        <!-- Footer / Status -->
+        <div class="p-4 border-t border-slate-100 bg-white text-center text-xs text-slate-400 font-medium">
+            <span id="taskStats">Memuat status...</span>
+        </div>
+
+    </div>
+
+    <!-- Script JavaScript untuk Logika To-Do List -->
+    <script>
+        // Mengambil data dari LocalStorage jika ada, jika tidak gunakan array kosong
+        let tasks = JSON.parse(localStorage.getItem('simpleTodoList')) || [];
+
+        // Fungsi utama untuk menyimpan ke memori dan merender tampilan
+        function saveAndRender() {
+            // Simpan ke LocalStorage
+            localStorage.setItem('simpleTodoList', JSON.stringify(tasks));
+            
+            const list = document.getElementById('taskList');
+            const stats = document.getElementById('taskStats');
+            list.innerHTML = ''; // Bersihkan daftar
+            
+            // Hitung status
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            stats.textContent = total === 0 ? "Belum ada tugas" : `${completed} dari ${total} tugas selesai`;
+
+            // Tampilan kosong (Empty State)
+            if(total === 0) {
+                list.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 opacity-70">
+                        <i class="ph ph-list-checks text-6xl mb-3 text-indigo-200"></i>
+                        <p class="font-medium text-slate-500">Daftar tugas kosong</p>
+                        <p class="text-sm text-slate-400 mt-1">Tambahkan tugas pertamamu di atas!</p>
+                    </div>`;
+                return;
+            }
+
+            // Render setiap tugas
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                
+                // Atur styling berdasarkan status selesai/belum
+                const baseStyle = "task-transition flex items-center justify-between p-4 rounded-xl border shadow-sm group ";
+                const stateStyle = task.completed 
+                    ? "bg-slate-100 border-transparent opacity-75" 
+                    : "bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md";
+                
+                li.className = baseStyle + stateStyle;
+                
+                li.innerHTML = `
+                    <div class="flex items-center gap-4 cursor-pointer flex-1 overflow-hidden" onclick="toggleTask(${task.id})">
+                        <button class="text-2xl focus:outline-none transition-colors ${task.completed ? 'text-green-500' : 'text-slate-300 group-hover:text-indigo-400'}">
+                            <i class="ph ${task.completed ? 'ph-check-circle-fill' : 'ph-circle'}"></i>
+                        </button>
+                        <span class="truncate text-[15px] transition-all ${task.completed ? 'line-through text-slate-400' : 'text-slate-700 font-medium'}">
+                            ${escapeHTML(task.text)}
+                        </span>
+                    </div>
+                    <button onclick="deleteTask(${task.id})" class="text-slate-300 hover:text-red-500 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 transition-colors ml-2 focus:outline-none">
+                        <i class="ph ph-trash text-lg"></i>
+                    </button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // Fungsi menambah tugas baru
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            const text = input.value.trim();
+            if (text) {
+                // Tambahkan di urutan paling atas (unshift)
+                tasks.unshift({ id: Date.now(), text: text, completed: false });
+                input.value = ''; // Kosongkan input
+                saveAndRender();
+            }
+        }
+
+        // Fungsi mencentang/batal centang tugas
+        window.toggleTask = function(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveAndRender();
+            }
+        };
+
+        // Fungsi menghapus tugas
+        window.deleteTask = function(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveAndRender();
+        };
+
+        // Mencegah masalah keamanan (XSS)
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag]));
+        }
+
+        // Jalankan fungsi tambah tugas saat tombol 'Enter' ditekan
+        document.getElementById('taskInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+
+        // Render pertama kali saat halaman dimuat
+        saveAndRender();
+    </script>
+</body>
+</html>
